@@ -15,10 +15,10 @@ void setup() {
 }
 
 void loop() {
-  analogWrite(LED_PIN, receiver.dmxBuffer[DMX_ADDRES]);
+  analogWrite(LED_PIN, receiver.getValue(DMX_ADDRESS));
 }
 ```
 
 On `begin()`, the library spawns a parallel thread that continuously receives and updates `receiver.dmxBuffer`. In other words, the `dmxBuffer` array always contains the most recent received data. The status LED will slowly be pulsing to indicate data being received.
 
-The current implementation is somewhat linked to Arduino ESP32 (used with Adafruit Huzzah32 boards) and uses the ESP32's second core to run the receive thread, for maximum real-time data processing (but at the expense of portability). Future improvements to this library may include compatibility with other boards, and will likely decouple the status LED from the core module, and may define a better interface between the library and fetching data. (Currently, the library just exposes the DMX buffer as a public member variable).
+The current implementation is somewhat linked to Arduino ESP32 (used with Adafruit Huzzah32 boards) and uses the ESP32's second core to run the receive thread, for maximum real-time data processing (but at the expense of portability). Future improvements to this library may include compatibility with other boards, and will likely decouple the status LED from the core module.

@@ -19,13 +19,15 @@
 #define WDMX_HEADER_SIZE                4   // Header size in the NRF24L01 protocol
 #define WDMX_MAGIC                    128   // Magic number expected in byte 0 of every receive packet
 
-enum wdmxUnit_t {
-  ALL = 0,
+enum wdmxID_t {                             // Unit IDs (aka ID LED Codes, or Channel Groups, depending on manufacturer)
+  AUTO = 0,
   RED = 1,
   GREEN = 2,
+  YELLOW = 3,
   BLUE = 4,
-  PURPLE = 5,
-  CYAN = 7
+  MANGENTA = 5,
+  CYAN = 6,
+  WHITE = 7
 };
 
 class WirelessDMXReceiver
@@ -33,10 +35,13 @@ class WirelessDMXReceiver
   public:
     WirelessDMXReceiver(int cePin, int csnPin, int statusLEDPin);
 
-    void begin();
+    void begin(wdmxID_t ID=AUTO);
 
-    unsigned int rxCount();
-    unsigned int rxErrors();
+    uint8_t getValue(unsigned int address) const { return (dmxBuffer[address-1]); };
+    void getValues(unsigned int startAddress, unsigned int length, uint8_t* buffer) const { memcpy(buffer, &dmxBuffer[startAddress-1], length); };
+    unsigned int rxCount() const { return (_rxCount); };
+    unsigned int rxErrors() const { return (_rxErrors); };
+
     uint8_t dmxBuffer[DMX_BUFSIZE];
     bool debug;
 
@@ -48,20 +53,22 @@ class WirelessDMXReceiver
       uint8_t dmxData[WDMX_PAYLOAD_SIZE-WDMX_HEADER_SIZE];
     };
 
-    bool _doScan(int unitID);
+    bool _scanChannel(unsigned int channel, wdmxID_t ID);
+    bool _scanID(wdmxID_t ID);
+    bool _scanAllIDs();
     void _dmxReceiveLoop();
 
     static void _startDMXReceiveThread(void*);
-    uint64_t _getAddress(int unitID, int channelID);
+    uint64_t _getAddress(unsigned int channel, wdmxID_t ID);
+
+    wdmxID_t _ID;
+    unsigned int _channel;
 
     unsigned int _rxCount;
     unsigned int _rxErrors;
     int _statusLEDPin;
     RF24 _radio;
     TaskHandle_t _dmxReceiveTask;
-
-    rf24_gpio_pin_t _cePin;
-    rf24_gpio_pin_t _csnPin;
 };
 
 #endif

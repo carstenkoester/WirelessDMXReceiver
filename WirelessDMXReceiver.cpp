@@ -17,64 +17,91 @@
  * for a description of these values.
  *
  */
-uint64_t WirelessDMXReceiver::_getAddress(int unitID, int channelID) {
+inline uint64_t WirelessDMXReceiver::_getAddress(unsigned int channel, wdmxID_t ID) {
   union wdmxAddress {
     struct {
       uint8_t channel;      // Channel ID
-      uint8_t unitID;       // Unit ID
+      uint8_t ID;           // Unit ID
       uint8_t notChannel;   // Bitwise complement (bitwise NOT) of the Channel ID
-      uint8_t notUnitID;    // Bitwise complement (bitwise NOT) of the unit ID
+      uint8_t notID;        // Bitwise complement (bitwise NOT) of the unit ID
       uint8_t sum;          // Algebraic sum of Unit ID and Channel ID
     } structured;
     uint64_t uint64;
   } address;
 
-  address.structured.channel = channelID;
-  address.structured.unitID = unitID;
-  address.structured.notChannel = ~channelID;
-  address.structured.notUnitID = ~unitID;
-  address.structured.sum = channelID + unitID;
+  address.structured.channel = channel;
+  address.structured.ID = ID;
+  address.structured.notChannel = ~channel;
+  address.structured.notID = ~ID;
+  address.structured.sum = channel + ID;
 
   return address.uint64;
 }
 
 /*
- * Given a Unit ID, probe all channels to see if we're receiving data for this unit ID
+ * Given a unit ID and a channel, probe a single channel.
+ *
+ * Waits up to 10ms for data, and returns false if we encountered a timeout or read anything other than DMX data.
+ * Return true if we did read DMX data.
  */
-bool WirelessDMXReceiver::_doScan(int unitID) {
+bool WirelessDMXReceiver::_scanChannel(unsigned int channel, wdmxID_t ID) {
   wdmxReceiveBuffer rxBuf;
 
-  for (int rfCH = 0; rfCH < 126; rfCH++) {  
-    delay(1);
-    if (rfCH % 16 == 0) {
-      digitalWrite(_statusLEDPin, !digitalRead(_statusLEDPin)); // Blink status LED while scanning - this will flash quickly
-    }
+  delay(1);
+  if (channel % 16 == 0) {
+    digitalWrite(_statusLEDPin, !digitalRead(_statusLEDPin)); // Blink status LED while scanning - this will flash quickly
+  }
 
-    _radio.flush_rx();
-    _radio.openReadingPipe(0, _getAddress(unitID, rfCH));
-    _radio.startListening();
-    _radio.setChannel(rfCH);
+  _radio.flush_rx();
+  _radio.openReadingPipe(0, _getAddress(channel, ID));
+  _radio.startListening();
+  _radio.setChannel(channel);
+  if (debug) {
+    Serial.printf("Trying channel %d (%d), unit ID %d, address %llx\n", _radio.getChannel(), channel, ID, _getAddress(channel, ID));
+  }
+
+  unsigned long started_waiting_at = micros(); // timeout setup
+  while (!_radio.available()) {                   // While nothing is received
+    if (micros() - started_waiting_at > 10000) {  // If waited longer than 10ms, indicate timeout and exit while loop
+       return(false);
+    }
+  }
+
+  _radio.read(&rxBuf, sizeof(rxBuf));
+  if (rxBuf.magic == WDMX_MAGIC) {
     if (debug) {
-      Serial.printf("Trying channel %d (%d), unit ID %d, address %llx\n", _radio.getChannel(), rfCH, unitID, _getAddress(unitID, rfCH));
+      Serial.printf("Found a transmitter on channel %d, unit ID %d\n", channel, ID);
     }
+    return(true);
+  }
 
-    unsigned long started_waiting_at = micros(); // timeout setup
-    bool timeout = false; 
-    while (!_radio.available()) {                   // While nothing is received
-      if (micros() - started_waiting_at > 10000) {  // If waited longer than 10ms, indicate timeout and exit while loop
-         timeout = true;
-         break;
-      }     
+  // If we got here, we found *something* but it wasn't valid Wireless DMX data
+  Serial.printf("Found invalid data on channel %d, unit ID %d\n", channel, ID);
+  return(false);
+}
+
+/*
+ * Given a Unit ID, probe all channels to see if we're receiving data for this unit ID
+ */
+bool WirelessDMXReceiver::_scanID(wdmxID_t ID) {
+  for (unsigned int channel = 0; channel < 126; channel++) {
+    if (_scanChannel(channel, ID)) {
+      _channel = channel;
+      return(true);
     }
+  }
+  return(false);
+}
 
-    if (!timeout) {  
-      _radio.read(&rxBuf, sizeof(rxBuf));
-      if (rxBuf.magic == WDMX_MAGIC) {
-        if (debug) {
-          Serial.printf("Found a transmitter on channel %d, unit ID %d\n", rfCH, unitID);
-        }
-        return(true);
-      }
+bool WirelessDMXReceiver::_scanAllIDs() {
+  for (unsigned int IDInt = 1; IDInt < 8; IDInt++) {
+    wdmxID_t ID = static_cast<wdmxID_t>(IDInt);
+    if (debug) {
+      Serial.printf("Scanning for Unit ID %d\n", ID);
+    }
+    if (_scanID(ID)) {
+      _ID = ID;
+      return(true);
     }
   }
   return(false);
@@ -126,20 +153,11 @@ WirelessDMXReceiver::WirelessDMXReceiver(int cePin, int csnPin, int statusLEDPin
   : _radio(cePin, csnPin)
 {
   _statusLEDPin = statusLEDPin;
-  _cePin = cePin;
-  _csnPin = csnPin;
 }
 
-unsigned int WirelessDMXReceiver::rxCount() {
-  return (_rxCount);
-}
-
-unsigned int WirelessDMXReceiver::rxErrors() {
-  return (_rxErrors);
-}
-
-void WirelessDMXReceiver::begin()
+void WirelessDMXReceiver::begin(wdmxID_t ID)
 {
+  _ID = ID;
 
   if (!_radio.begin()){
     if (debug) {
@@ -149,7 +167,6 @@ void WirelessDMXReceiver::begin()
 
   _radio.setDataRate(RF24_250KBPS);
   _radio.setCRCLength(RF24_CRC_16);
-  //_radio.setPALevel(RF24_PA_MAX);
   _radio.setPALevel(RF24_PA_LOW);
   _radio.setAutoAck(false);
   _radio.setPayloadSize(WDMX_PAYLOAD_SIZE);
@@ -158,25 +175,20 @@ void WirelessDMXReceiver::begin()
     _radio.printPrettyDetails();
   }
 
-  bool gotLock;
-
-  for (;;) {
-    for (int unitID = 1; unitID < 8; unitID++) {
-      if (debug) {
-        Serial.printf("Scanning for Unit ID %d\n", unitID);
-      }
-      gotLock = _doScan(unitID);
-      if (gotLock) {
+  while(true) {
+    if (ID == AUTO) {
+      if (_scanAllIDs()) {
         break;
       }
-    }
-    if (gotLock) {
-      break;
+    } else {
+      if (_scanID(ID)) {
+        break;
+      }
     }
   }
 
   if (debug) {
-    Serial.printf("Got lock\n");
+    Serial.printf("Got lock, ID=%d Channel=%d\n", _ID, _channel);
   }
 
   // Clear the DMX buffer
