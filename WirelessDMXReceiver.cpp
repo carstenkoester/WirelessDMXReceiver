@@ -4,7 +4,6 @@
   Released into the public domain.
 */
 
-#include "Arduino.h"
 #include "WirelessDMXReceiver.h"
 
 #include <esp_task_wdt.h>
@@ -17,7 +16,8 @@
  * for a description of these values.
  *
  */
-inline uint64_t WirelessDMXReceiver::_getAddress(unsigned int channel, wdmxID_t ID) {
+inline uint64_t WirelessDMXReceiver::_getAddress(unsigned int channel, wdmxID_t ID)
+{
   union wdmxAddress {
     struct {
       uint8_t channel;      // Channel ID
@@ -44,7 +44,8 @@ inline uint64_t WirelessDMXReceiver::_getAddress(unsigned int channel, wdmxID_t 
  * Waits up to 10ms for data, and returns false if we encountered a timeout or read anything other than DMX data.
  * Return true if we did read DMX data.
  */
-bool WirelessDMXReceiver::_scanChannel(unsigned int channel, wdmxID_t ID) {
+bool WirelessDMXReceiver::_scanChannel(unsigned int channel, wdmxID_t ID)
+{
   wdmxReceiveBuffer rxBuf;
 
   delay(1);
@@ -72,6 +73,8 @@ bool WirelessDMXReceiver::_scanChannel(unsigned int channel, wdmxID_t ID) {
     if (debug) {
       Serial.printf("Found a transmitter on channel %d, unit ID %d\n", channel, ID);
     }
+    _channel = channel;
+    _ID = ID;
     return(true);
   }
 
@@ -83,31 +86,32 @@ bool WirelessDMXReceiver::_scanChannel(unsigned int channel, wdmxID_t ID) {
 /*
  * Given a Unit ID, probe all channels to see if we're receiving data for this unit ID
  */
-bool WirelessDMXReceiver::_scanID(wdmxID_t ID) {
+bool WirelessDMXReceiver::_scanID(wdmxID_t ID)
+{
   for (unsigned int channel = 0; channel < 126; channel++) {
     if (_scanChannel(channel, ID)) {
-      _channel = channel;
       return(true);
     }
   }
   return(false);
 }
 
-bool WirelessDMXReceiver::_scanAllIDs() {
+bool WirelessDMXReceiver::_scanAllIDs()
+{
   for (unsigned int IDInt = 1; IDInt < 8; IDInt++) {
     wdmxID_t ID = static_cast<wdmxID_t>(IDInt);
     if (debug) {
       Serial.printf("Scanning for Unit ID %d\n", ID);
     }
     if (_scanID(ID)) {
-      _ID = ID;
       return(true);
     }
   }
   return(false);
 }
 
-void WirelessDMXReceiver::_dmxReceiveLoop() {
+void WirelessDMXReceiver::_dmxReceiveLoop()
+{
   wdmxReceiveBuffer rxBuf;
 
   while (true) {
@@ -145,7 +149,8 @@ void WirelessDMXReceiver::_dmxReceiveLoop() {
   }
 }
 
-void WirelessDMXReceiver::_startDMXReceiveThread(void* _this) {
+void WirelessDMXReceiver::_startDMXReceiveThread(void* _this)
+{
   ((WirelessDMXReceiver*)_this)->_dmxReceiveLoop();
 }
 
@@ -157,8 +162,6 @@ WirelessDMXReceiver::WirelessDMXReceiver(int cePin, int csnPin, int statusLEDPin
 
 void WirelessDMXReceiver::begin(wdmxID_t ID)
 {
-  _ID = ID;
-
   if (!_radio.begin()){
     if (debug) {
       Serial.println("ERROR: failed to start radio");
