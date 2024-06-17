@@ -38,7 +38,7 @@ class WirelessDMXReceiver
     void begin(wdmxID_t ID=AUTO);
 
     uint8_t getValue(unsigned int address) const { return (dmxBuffer[address-1]); };
-    void getValues(unsigned int startAddress, unsigned int length, uint8_t* buffer) const { memcpy(buffer, &dmxBuffer[startAddress-1], length); };
+    void getValues(unsigned int startAddress, unsigned int length, void* buffer) const { memcpy(buffer, &dmxBuffer[startAddress-1], length); };
     unsigned int rxCount() const { return (_rxCount); };
     unsigned int rxErrors() const { return (_rxErrors); };
 
