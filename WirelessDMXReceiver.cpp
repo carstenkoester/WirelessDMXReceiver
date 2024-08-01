@@ -49,7 +49,7 @@ bool WirelessDMXReceiver::_scanChannel(unsigned int channel, wdmxID_t ID)
   wdmxReceiveBuffer rxBuf;
 
   delay(1);
-  if (channel % 16 == 0) {
+  if ((_statusLEDPin != 0) && (channel % 16 == 0)) {
     digitalWrite(_statusLEDPin, !digitalRead(_statusLEDPin)); // Blink status LED while scanning - this will flash quickly
   }
 
@@ -69,7 +69,7 @@ bool WirelessDMXReceiver::_scanChannel(unsigned int channel, wdmxID_t ID)
   }
 
   _radio.read(&rxBuf, sizeof(rxBuf));
-  if (rxBuf.magic == WDMX_MAGIC) {
+  if ((rxBuf.magic == WDMX_MAGIC_1) || (rxBuf.magic == WDMX_MAGIC_2)) {
     if (debug) {
       Serial.printf("Found a transmitter on channel %d, unit ID %d\n", channel, ID);
     }
@@ -92,6 +92,7 @@ bool WirelessDMXReceiver::_scanID(wdmxID_t ID)
     if (_scanChannel(channel, ID)) {
       return(true);
     }
+    delay(50);
   }
   return(false);
 }
@@ -113,22 +114,42 @@ bool WirelessDMXReceiver::_scanAllIDs()
 void WirelessDMXReceiver::_dmxReceiveLoop()
 {
   wdmxReceiveBuffer rxBuf;
+  uint8_t prevPayloadID = 0;
+  bool firstFrame = true;
 
   while (true) {
-    while (_radio.available()) {
+    if (_radio.rxFifoFull()) {
+      _rxOverruns++;
+    }
+
+    if (_radio.available())
+    {
       /*
-       * Read DMX values from radio.
-       */
+        * Read DMX values from radio.
+        */
 
       _radio.read(&rxBuf, sizeof(rxBuf));
 
-      if (rxBuf.magic != WDMX_MAGIC) {
-        // Received packet with unexpected magic number. Ignore.
-        _rxErrors++;
+      if (capture) {
+        debugBuffer.pushOverwrite(rxBuf);
+      }
+      if ((rxBuf.magic != WDMX_MAGIC_1) && (rxBuf.magic != WDMX_MAGIC_2)) {
+        // Received frame with unexpected magic number. Ignore.
+        _rxInvalid++;
         continue;
       }
 
+      if (firstFrame) {
+        firstFrame = false;
+      } else {
+        if (((rxBuf.payloadID > 0) && (rxBuf.payloadID != prevPayloadID +1 )) || ((rxBuf.payloadID == 0) && prevPayloadID != rxBuf.highestChannelID/sizeof(rxBuf.dmxData))) {
+          // Received a frame with gap in sequence number. We'll process it but count the error.
+          _rxSeqErrors++;
+        }
+      }
+
       _rxCount++;
+      prevPayloadID = rxBuf.payloadID;
       esp_task_wdt_reset();
 
       int dmxChanStart = rxBuf.payloadID* sizeof(rxBuf.dmxData);
@@ -140,10 +161,12 @@ void WirelessDMXReceiver::_dmxReceiveLoop()
       }
 
       // Pulse status LED when we're receiving
-      if ((_rxCount / 1024) % 2) {
-        analogWrite(_statusLEDPin, (_rxCount % 1024)/4);
-      } else {
-        analogWrite(_statusLEDPin, 255-((_rxCount % 1024)/4));
+      if (_statusLEDPin != 0) {
+        if ((_rxCount / 1024) % 2) {
+          analogWrite(_statusLEDPin, (_rxCount % 1024)/4);
+        } else {
+          analogWrite(_statusLEDPin, 255-((_rxCount % 1024)/4));
+        }
       }
     }
   }
@@ -188,6 +211,7 @@ void WirelessDMXReceiver::begin(wdmxID_t ID)
         break;
       }
     }
+    delay(50);
   }
 
   if (debug) {
