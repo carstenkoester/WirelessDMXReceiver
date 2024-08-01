@@ -54,6 +54,7 @@ class WirelessDMXReceiver
     uint8_t getValue(unsigned int address) const { return (dmxBuffer[address-1]); };
     void getValues(unsigned int startAddress, unsigned int length, void* buffer) const { memcpy(buffer, &dmxBuffer[startAddress-1], length); };
     wdmxID_t getId() const { return (_ID); };
+    unsigned int getChannel() const { return (_channel); };
     unsigned int rxCount() const { return (_rxCount); };
     unsigned int rxInvalid() const { return (_rxInvalid); };
     unsigned int rxOverruns() const { return (_rxOverruns); };

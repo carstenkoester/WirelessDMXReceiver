@@ -48,7 +48,6 @@ bool WirelessDMXReceiver::_scanChannel(unsigned int channel, wdmxID_t ID)
 {
   wdmxReceiveBuffer rxBuf;
 
-  delay(1);
   if ((_statusLEDPin != 0) && (channel % 16 == 0)) {
     digitalWrite(_statusLEDPin, !digitalRead(_statusLEDPin)); // Blink status LED while scanning - this will flash quickly
   }
@@ -92,7 +91,6 @@ bool WirelessDMXReceiver::_scanID(wdmxID_t ID)
     if (_scanChannel(channel, ID)) {
       return(true);
     }
-    delay(50);
   }
   return(false);
 }
@@ -211,7 +209,6 @@ void WirelessDMXReceiver::begin(wdmxID_t ID)
         break;
       }
     }
-    delay(50);
   }
 
   if (debug) {
