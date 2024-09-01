@@ -14,10 +14,8 @@
 #define WirelessDMXReceiver_h
 
 #include "Arduino.h"
-
 #include <nRF24L01.h>
 #include <RF24.h>
-
 #include <RingBuf.h>
 
 #define DMX_BUFSIZE                   512   // Total number of channels in a DMX universe
@@ -37,11 +35,16 @@ enum wdmxID_t {                             // Unit IDs (aka ID LED Codes, or Ch
   WHITE = 7
 };
 
+inline wdmxID_t operator++ (wdmxID_t &id) {
+  id = static_cast<wdmxID_t>((static_cast<int>(id) + 1) % 8);
+  return id;
+}
+
 class WirelessDMXReceiver
 {
   public:
     struct wdmxReceiveBuffer {
-      uint8_t magic; // Always WDMX_MAGIC_1 or WDMX_MAGIC_2
+      uint8_t magic;             // Always WDMX_MAGIC_1 or WDMX_MAGIC_2
       uint8_t payloadID;
       uint16_t highestChannelID; // Highest channel ID in the universe (not necessarily in this packet). Basically, highestChannelID + 1 = numChannels.
       uint8_t dmxData[WDMX_PAYLOAD_SIZE-WDMX_HEADER_SIZE];
@@ -50,11 +53,13 @@ class WirelessDMXReceiver
     WirelessDMXReceiver(int cePin, int csnPin, int statusLEDPin);
 
     void begin(wdmxID_t ID=AUTO);
+    void begin(wdmxID_t ID, std::function<void()> scanCallback);
 
     uint8_t getValue(unsigned int address) const { return (dmxBuffer[address-1]); };
     void getValues(unsigned int startAddress, unsigned int length, void* buffer) const { memcpy(buffer, &dmxBuffer[startAddress-1], length); };
     wdmxID_t getId() const { return (_ID); };
     unsigned int getChannel() const { return (_channel); };
+    bool isLocked() const { return (_locked); };
     unsigned int rxCount() const { return (_rxCount); };
     unsigned int rxInvalid() const { return (_rxInvalid); };
     unsigned int rxOverruns() const { return (_rxOverruns); };
@@ -64,23 +69,26 @@ class WirelessDMXReceiver
     bool debug;
     bool capture;
 
+    // FIXME: Need to figure out what to do with the "packet capture" ability long-term. It is useful but we may not want to sacrifice
+    // memory for 2k packets when we're not using it. Perhaps it should be heap allocated, with configurable size, and on demand.
     RingBuf<wdmxReceiveBuffer, 2048> debugBuffer;
 
   private:
-    bool _scanChannel(unsigned int channel, wdmxID_t ID);
-    bool _scanID(wdmxID_t ID);
-    bool _scanAllIDs();
+    bool _scanChannel();
+    void _scanNext();
     void _dmxReceiveLoop();
 
     static void _startDMXReceiveThread(void*);
     uint64_t _getAddress(unsigned int channel, wdmxID_t ID);
 
+    wdmxID_t _configID;
     wdmxID_t _ID;
     unsigned int _channel;
+    bool _locked;
 
     unsigned int _rxCount = 0;     // Number of frames received
     unsigned int _rxInvalid = 0;   // Number of frames with invalid header
-    unsigned int _rxOverruns = 0;   // Number of times RF24 returned FifoFull when we were processing a frame 
+    unsigned int _rxOverruns = 0;  // Number of times RF24 returned FifoFull when we were processing a frame 
     unsigned int _rxSeqErrors = 0; // Number of times we detected a gap in sequence numbers
     int _statusLEDPin;
     RF24 _radio;

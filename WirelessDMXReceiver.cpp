@@ -5,7 +5,6 @@
 */
 
 #include "WirelessDMXReceiver.h"
-
 #include <esp_task_wdt.h>
 
 /*
@@ -44,20 +43,20 @@ inline uint64_t WirelessDMXReceiver::_getAddress(unsigned int channel, wdmxID_t 
  * Waits up to 10ms for data, and returns false if we encountered a timeout or read anything other than DMX data.
  * Return true if we did read DMX data.
  */
-bool WirelessDMXReceiver::_scanChannel(unsigned int channel, wdmxID_t ID)
+bool WirelessDMXReceiver::_scanChannel()
 {
   wdmxReceiveBuffer rxBuf;
 
-  if ((_statusLEDPin != 0) && (channel % 16 == 0)) {
+  if ((_statusLEDPin != 0) && (_channel % 16 == 0)) {
     digitalWrite(_statusLEDPin, !digitalRead(_statusLEDPin)); // Blink status LED while scanning - this will flash quickly
   }
 
   _radio.flush_rx();
-  _radio.openReadingPipe(0, _getAddress(channel, ID));
+  _radio.openReadingPipe(0, _getAddress(_channel, _ID));
   _radio.startListening();
-  _radio.setChannel(channel);
+  _radio.setChannel(_channel);
   if (debug) {
-    Serial.printf("Trying channel %d (%d), unit ID %d, address %llx\n", _radio.getChannel(), channel, ID, _getAddress(channel, ID));
+    Serial.printf("SCAN: Channel %d (%d), unit ID %d, address %llx\n", _radio.getChannel(), _channel, _ID, _getAddress(_channel, _ID));
   }
 
   unsigned long started_waiting_at = micros(); // timeout setup
@@ -70,43 +69,35 @@ bool WirelessDMXReceiver::_scanChannel(unsigned int channel, wdmxID_t ID)
   _radio.read(&rxBuf, sizeof(rxBuf));
   if ((rxBuf.magic == WDMX_MAGIC_1) || (rxBuf.magic == WDMX_MAGIC_2)) {
     if (debug) {
-      Serial.printf("Found a transmitter on channel %d, unit ID %d\n", channel, ID);
+      Serial.printf("SCAN: Found a transmitter on channel %d, unit ID %d\n", _channel, _ID);
     }
-    _channel = channel;
-    _ID = ID;
     return(true);
   }
 
   // If we got here, we found *something* but it wasn't valid Wireless DMX data
-  Serial.printf("Found invalid data on channel %d, unit ID %d\n", channel, ID);
+  Serial.printf("SCAN: Found invalid data on channel %d, unit ID %d\n", _channel, _ID);
   return(false);
 }
 
-/*
- * Given a Unit ID, probe all channels to see if we're receiving data for this unit ID
- */
-bool WirelessDMXReceiver::_scanID(wdmxID_t ID)
+void WirelessDMXReceiver::_scanNext()
 {
-  for (unsigned int channel = 0; channel < 126; channel++) {
-    if (_scanChannel(channel, ID)) {
-      return(true);
-    }
+  _locked = _scanChannel();
+  if (_locked) {
+    return;
   }
-  return(false);
-}
 
-bool WirelessDMXReceiver::_scanAllIDs()
-{
-  for (unsigned int IDInt = 1; IDInt < 8; IDInt++) {
-    wdmxID_t ID = static_cast<wdmxID_t>(IDInt);
-    if (debug) {
-      Serial.printf("Scanning for Unit ID %d\n", ID);
-    }
-    if (_scanID(ID)) {
-      return(true);
+  _channel++;
+  if (_channel > 126) {
+    _channel = 0;
+    if (_configID == AUTO) {
+      if (_ID < WHITE) {
+        ++_ID;
+      } else {
+        _ID = RED;
+      }
     }
   }
-  return(false);
+  return;
 }
 
 void WirelessDMXReceiver::_dmxReceiveLoop()
@@ -183,6 +174,11 @@ WirelessDMXReceiver::WirelessDMXReceiver(int cePin, int csnPin, int statusLEDPin
 
 void WirelessDMXReceiver::begin(wdmxID_t ID)
 {
+  begin(ID, nullptr);
+}
+
+void WirelessDMXReceiver::begin(wdmxID_t ID, std::function<void()> scanCallback)
+{ 
   if (!_radio.begin()){
     if (debug) {
       Serial.println("ERROR: failed to start radio");
@@ -199,20 +195,22 @@ void WirelessDMXReceiver::begin(wdmxID_t ID)
     _radio.printPrettyDetails();
   }
 
-  while(true) {
-    if (ID == AUTO) {
-      if (_scanAllIDs()) {
-        break;
-      }
-    } else {
-      if (_scanID(ID)) {
-        break;
-      }
-    }
+  // Initial configuration to begin scanning
+  _configID = ID;
+  _channel = 0;
+  _locked = false;
+  if (_configID == AUTO) {
+    _ID = RED;
+  } else {
+    _ID = _configID;
   }
 
-  if (debug) {
-    Serial.printf("Got lock, ID=%d Channel=%d\n", _ID, _channel);
+  // Scan for receiver. If we were given a callback function, invoke the callback function between scan attempts.
+  while(!_locked) {
+    _scanNext();
+    if (scanCallback) {
+      scanCallback();
+    }
   }
 
   // Clear the DMX buffer
