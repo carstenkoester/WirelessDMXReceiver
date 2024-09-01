@@ -116,12 +116,14 @@ void WirelessDMXReceiver::_dmxReceiveLoop()
       /*
         * Read DMX values from radio.
         */
-
       _radio.read(&rxBuf, sizeof(rxBuf));
 
-      if (capture) {
-        debugBuffer.pushOverwrite(rxBuf);
+#ifdef WDMX_CAPTURE
+      if (_capture) {
+        _captureBuffer.pushOverwrite(rxBuf);
       }
+#endif
+
       if ((rxBuf.magic != WDMX_MAGIC_1) && (rxBuf.magic != WDMX_MAGIC_2)) {
         // Received frame with unexpected magic number. Ignore.
         _rxInvalid++;
@@ -227,4 +229,43 @@ void WirelessDMXReceiver::begin(wdmxID_t ID, std::function<void()> scanCallback)
     0                       /* Core where the task should run */
   );
   esp_task_wdt_add(_dmxReceiveTask);
+}
+
+void WirelessDMXReceiver::startCapture()
+{
+#ifdef WDMX_CAPTURE
+  _capture = true;
+#endif  
+}
+
+void WirelessDMXReceiver::stopCapture()
+{
+#ifdef WDMX_CAPTURE
+  _capture = false;
+#endif  
+}
+
+bool WirelessDMXReceiver::isCaptureBufferFull()
+{
+#ifdef WDMX_CAPTURE
+  return _captureBuffer.isFull();
+#else
+  return(false);
+#endif  
+}
+
+void WirelessDMXReceiver::printCapture()
+{
+#ifdef WDMX_CAPTURE
+  wdmxReceiveBuffer buf;
+  unsigned int i=0;
+  while (_captureBuffer.pop(buf)) {
+    i++;
+    Serial.printf("Pkt %04d Magic %02x Payload %02x (%d) HighestChannel %04x (%d), Data ", i, buf.magic, buf.payloadID, buf.payloadID, buf.highestChannelID, buf.highestChannelID);
+    for (int j = 0; j < sizeof(buf.dmxData); j++) {
+      Serial.printf("%02x ", buf.dmxData[j]);
+    }
+    Serial.printf("\n");
+  }
+#endif
 }

@@ -24,6 +24,9 @@
 #define WDMX_MAGIC_1                 0x80   // Magic number expected in byte 0 of most packet
 #define WDMX_MAGIC_2                 0xA0   // Magic number received in every 14th packet. Not sure what the significance of that is.
 
+// Enable the following to support DMX packet capture. This is disabled by default to reduce stack memory usage.
+#define WDMX_CAPTURE
+
 enum wdmxID_t {                             // Unit IDs (aka ID LED Codes, or Channel Groups, depending on manufacturer)
   AUTO = 0,
   RED = 1,
@@ -67,11 +70,11 @@ class WirelessDMXReceiver
 
     uint8_t dmxBuffer[DMX_BUFSIZE];
     bool debug;
-    bool capture;
 
-    // FIXME: Need to figure out what to do with the "packet capture" ability long-term. It is useful but we may not want to sacrifice
-    // memory for 2k packets when we're not using it. Perhaps it should be heap allocated, with configurable size, and on demand.
-    RingBuf<wdmxReceiveBuffer, 2048> debugBuffer;
+    void startCapture();
+    void stopCapture();
+    bool isCaptureBufferFull();
+    void printCapture();
 
   private:
     bool _scanChannel();
@@ -93,6 +96,11 @@ class WirelessDMXReceiver
     int _statusLEDPin;
     RF24 _radio;
     TaskHandle_t _dmxReceiveTask;
+
+    bool _capture;
+#ifdef WDMX_CAPTURE
+    RingBuf<wdmxReceiveBuffer, 2048> _captureBuffer;
+#endif
 };
 
 #endif
