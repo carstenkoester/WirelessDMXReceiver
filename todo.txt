@@ -1,0 +1,21 @@
+- Error handling during scan: If _radio.getChannel() != _channel, something is wrong
+- Error handling during scan: Reset after a number of unsuccessful scans.. either after exhausting all 126 channels, or after exhausting sizeof(wdmxID_t) * 126 channels?
+
+_channel++;
+  if (_channel > 126) {
+    _channel = 0;
+    if (_configID == AUTO) {
+      if (_ID < WHITE) {
+        ++_ID;
+      } else {
+        _ID = RED;
+      }
+    }
+  }
+  return;
+
+Reset if >126 and configID != auto, or instead of going back to RED
+
+
+ - At runtime, can we check if communication with the wireless module is up?
+ - Create a discrete blink code (2x blink, 1-sec dark) to indicate nRF error?
