@@ -53,7 +53,7 @@ class WirelessDMXReceiver
       uint8_t dmxData[WDMX_PAYLOAD_SIZE-WDMX_HEADER_SIZE];
     };
     
-    WirelessDMXReceiver(int cePin, int csnPin, int statusLEDPin);
+    WirelessDMXReceiver(int cePin, int csnPin);
 
     void begin(wdmxID_t ID=AUTO);
     void begin(wdmxID_t ID, std::function<void()> scanCallback);
@@ -93,7 +93,7 @@ class WirelessDMXReceiver
     unsigned int _rxInvalid = 0;   // Number of frames with invalid header
     unsigned int _rxOverruns = 0;  // Number of times RF24 returned FifoFull when we were processing a frame 
     unsigned int _rxSeqErrors = 0; // Number of times we detected a gap in sequence numbers
-    int _statusLEDPin;
+
     RF24 _radio;
     TaskHandle_t _dmxReceiveTask;
 

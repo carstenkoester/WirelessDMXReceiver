@@ -47,10 +47,6 @@ bool WirelessDMXReceiver::_scanChannel()
 {
   wdmxReceiveBuffer rxBuf;
 
-  if ((_statusLEDPin != 0) && (_channel % 16 == 0)) {
-    digitalWrite(_statusLEDPin, !digitalRead(_statusLEDPin)); // Blink status LED while scanning - this will flash quickly
-  }
-
   _radio.flush_rx();
   _radio.openReadingPipe(0, _getAddress(_channel, _ID));
   _radio.startListening();
@@ -150,15 +146,6 @@ void WirelessDMXReceiver::_dmxReceiveLoop()
       if (dmxChanStart+sizeof(rxBuf.dmxData) > sizeof(dmxBuffer)) {
         memcpy(&dmxBuffer, &rxBuf.dmxData[sizeof(dmxBuffer)-dmxChanStart], dmxChanStart+sizeof(rxBuf.dmxData)-sizeof(dmxBuffer));
       }
-
-      // Pulse status LED when we're receiving
-      if (_statusLEDPin != 0) {
-        if ((_rxCount / 1024) % 2) {
-          analogWrite(_statusLEDPin, (_rxCount % 1024)/4);
-        } else {
-          analogWrite(_statusLEDPin, 255-((_rxCount % 1024)/4));
-        }
-      }
     }
   }
 }
@@ -168,10 +155,9 @@ void WirelessDMXReceiver::_startDMXReceiveThread(void* _this)
   ((WirelessDMXReceiver*)_this)->_dmxReceiveLoop();
 }
 
-WirelessDMXReceiver::WirelessDMXReceiver(int cePin, int csnPin, int statusLEDPin)
+WirelessDMXReceiver::WirelessDMXReceiver(int cePin, int csnPin)
   : _radio(cePin, csnPin)
 {
-  _statusLEDPin = statusLEDPin;
 }
 
 void WirelessDMXReceiver::begin(wdmxID_t ID)
