@@ -60,13 +60,15 @@ class WirelessDMXReceiver
 
     uint8_t getValue(unsigned int address) const { return (dmxBuffer[address-1]); };
     void getValues(unsigned int startAddress, unsigned int length, void* buffer) const { memcpy(buffer, &dmxBuffer[startAddress-1], length); };
+
     wdmxID_t getId() const { return (_ID); };
-    unsigned int getChannel() const { return (_channel); };
-    bool isLocked() const { return (_locked); };
-    unsigned int rxCount() const { return (_rxCount); };
-    unsigned int rxInvalid() const { return (_rxInvalid); };
-    unsigned int rxOverruns() const { return (_rxOverruns); };
-    unsigned int rxSeqErrors() const { return (_rxSeqErrors); };
+    const unsigned int getChannel() const { return (_channel); };
+    const bool isLocked() const { return (_locked); };
+    const unsigned int rxCount() const { return (_rxCount); };
+    const unsigned int rxInvalid() const { return (_rxInvalid); };
+    const unsigned int rxOverruns() const { return (_rxOverruns); };
+    const unsigned int rxSeqErrors() const { return (_rxSeqErrors); };
+    const unsigned long lastRxMillis() const { return (_lastRxMillis); };
 
     uint8_t dmxBuffer[DMX_BUFSIZE];
     bool debug;
@@ -88,6 +90,7 @@ class WirelessDMXReceiver
     wdmxID_t _ID;
     unsigned int _channel;
     bool _locked;
+    unsigned long _lastRxMillis = 0;
 
     unsigned int _rxCount = 0;     // Number of frames received
     unsigned int _rxInvalid = 0;   // Number of frames with invalid header

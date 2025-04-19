@@ -138,6 +138,7 @@ void WirelessDMXReceiver::_dmxReceiveLoop()
       _rxCount++;
       prevPayloadID = rxBuf.payloadID;
       esp_task_wdt_reset();
+      _lastRxMillis = millis();
 
       int dmxChanStart = rxBuf.payloadID* sizeof(rxBuf.dmxData);
 
