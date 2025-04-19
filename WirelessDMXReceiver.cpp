@@ -1,6 +1,6 @@
 /*
   WirelessDMXReceiver.cpp - Library for receiving DMX using a Wireless module
-  Carsten Koester, ckoester@cisco.com, May-2024.
+  Carsten Koester, carsten@ckoester.net, May-2024.
   Released into the public domain.
 */
 
