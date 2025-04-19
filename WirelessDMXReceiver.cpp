@@ -1,6 +1,6 @@
 /*
   WirelessDMXReceiver.cpp - Library for receiving DMX using a Wireless module
-  Carsten Koester, ckoester@cisco.com, May-2024.
+  Carsten Koester, carsten@ckoester.net, May-2024.
   Released into the public domain.
 */
 
@@ -46,10 +46,6 @@ inline uint64_t WirelessDMXReceiver::_getAddress(unsigned int channel, wdmxID_t 
 bool WirelessDMXReceiver::_scanChannel()
 {
   wdmxReceiveBuffer rxBuf;
-
-  if ((_statusLEDPin != 0) && (_channel % 16 == 0)) {
-    digitalWrite(_statusLEDPin, !digitalRead(_statusLEDPin)); // Blink status LED while scanning - this will flash quickly
-  }
 
   _radio.flush_rx();
   _radio.openReadingPipe(0, _getAddress(_channel, _ID));
@@ -142,6 +138,7 @@ void WirelessDMXReceiver::_dmxReceiveLoop()
       _rxCount++;
       prevPayloadID = rxBuf.payloadID;
       esp_task_wdt_reset();
+      _lastRxMillis = millis();
 
       int dmxChanStart = rxBuf.payloadID* sizeof(rxBuf.dmxData);
 
@@ -149,15 +146,6 @@ void WirelessDMXReceiver::_dmxReceiveLoop()
       memcpy(&dmxBuffer[dmxChanStart], &rxBuf.dmxData, min(sizeof(rxBuf.dmxData), sizeof(dmxBuffer)-dmxChanStart));
       if (dmxChanStart+sizeof(rxBuf.dmxData) > sizeof(dmxBuffer)) {
         memcpy(&dmxBuffer, &rxBuf.dmxData[sizeof(dmxBuffer)-dmxChanStart], dmxChanStart+sizeof(rxBuf.dmxData)-sizeof(dmxBuffer));
-      }
-
-      // Pulse status LED when we're receiving
-      if (_statusLEDPin != 0) {
-        if ((_rxCount / 1024) % 2) {
-          analogWrite(_statusLEDPin, (_rxCount % 1024)/4);
-        } else {
-          analogWrite(_statusLEDPin, 255-((_rxCount % 1024)/4));
-        }
       }
     }
   }
@@ -168,10 +156,9 @@ void WirelessDMXReceiver::_startDMXReceiveThread(void* _this)
   ((WirelessDMXReceiver*)_this)->_dmxReceiveLoop();
 }
 
-WirelessDMXReceiver::WirelessDMXReceiver(int cePin, int csnPin, int statusLEDPin)
+WirelessDMXReceiver::WirelessDMXReceiver(int cePin, int csnPin)
   : _radio(cePin, csnPin)
 {
-  _statusLEDPin = statusLEDPin;
 }
 
 void WirelessDMXReceiver::begin(wdmxID_t ID)
