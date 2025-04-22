@@ -25,7 +25,7 @@
 #define WDMX_MAGIC_2                 0xA0   // Magic number received in every 14th packet. Not sure what the significance of that is.
 
 // Enable the following to support DMX packet capture. This is disabled by default to reduce stack memory usage.
-#define WDMX_CAPTURE
+// #define WDMX_CAPTURE
 
 enum wdmxID_t {                             // Unit IDs (aka ID LED Codes, or Channel Groups, depending on manufacturer)
   AUTO = 0,
