@@ -47,6 +47,14 @@ bool WirelessDMXReceiver::_scanChannel()
 {
   wdmxReceiveBuffer rxBuf;
 
+  /*
+   * We've seen instances where the chip has poor contact and becomes unresponsive. If this happens, reset.
+   */
+  if (!_radio.isChipConnected()) {
+    Serial.printf("RF24 chip appears not connected, restarting\n");
+    ESP.restart();
+  }
+
   _radio.flush_rx();
   _radio.openReadingPipe(0, _getAddress(_channel, _ID));
   _radio.startListening();
@@ -194,11 +202,17 @@ void WirelessDMXReceiver::begin(wdmxID_t ID, std::function<void()> scanCallback)
     _ID = _configID;
   }
 
-  // Scan for receiver. If we were given a callback function, invoke the callback function between scan attempts.
+  // Scan for receiver. If we were given a callback function, invoke the callback function between scan attempts. Restart after scanning all channels in all IDs three times.
+  unsigned int scan_count = 0;
   while(!_locked) {
+    scan_count++;
     _scanNext();
     if (scanCallback) {
       scanCallback();
+    }
+    if(scan_count > (3 * wdmxID_t::WHITE * 126)) {
+      Serial.printf("Exhausted %d attempts, restarting\n", (3 * wdmxID_t::WHITE * 126));
+      ESP.restart();
     }
   }
 
